@@ -9,7 +9,7 @@ import re
 
 
 
-class WindDataAnalyzer:
+class WindDataAnalyzerNIST:
     def __init__(self, asc_path, hed_path: str):
         self.asc_path = asc_path
         self.hed_path = hed_path

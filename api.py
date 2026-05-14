@@ -5,7 +5,7 @@ import os
 from fastapi import File, UploadFile
 import subprocess as sb
 import glob
-from clean_read import WindDataAnalyzer
+from clean_read import WindDataAnalyzerNIST
 
 app = FastAPI()
 
@@ -72,7 +72,7 @@ async def upload_files(file: UploadFile = File(...)):
             hed_path, asc_path = hdf_file_reader()
 
         if os.path.exists(hed_path):
-            analyzer = WindDataAnalyzer(asc_path, hed_path)
+            analyzer = WindDataAnalyzerNIST(asc_path, hed_path)
 
             tap_df = analyzer.get_wind_dataframe(
                 " Tap_Coordinates_3D           ",
