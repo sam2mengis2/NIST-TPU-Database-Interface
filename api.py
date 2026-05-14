@@ -6,6 +6,7 @@ from fastapi import File, UploadFile
 import subprocess as sb
 import glob
 from clean_read import WindDataAnalyzerNIST
+from clean_read import WindDataAnalyzerTPU
 
 app = FastAPI()
 
@@ -71,54 +72,73 @@ async def upload_files(file: UploadFile = File(...)):
         if file.filename.endswith(".HDF"):
             hed_path, asc_path = hdf_file_reader()
 
-        if os.path.exists(hed_path):
-            analyzer = WindDataAnalyzerNIST(asc_path, hed_path)
+            if os.path.exists(hed_path):
+                analyzer = WindDataAnalyzerNIST(asc_path, hed_path)
 
-            tap_df = analyzer.get_wind_dataframe(
-                " Tap_Coordinates_3D           ",
-                ['Tap_No', 'Face_No', 'X', 'Y', 'Z']
-            )
+                tap_df = analyzer.get_wind_dataframe(
+                    " Tap_Coordinates_3D           ",
+                    ['Tap_No', 'Face_No', 'X', 'Y', 'Z']
+                )
 
-            corners_df = analyzer.get_wind_dataframe(
-                " Building_Corners_3D          ",
-                ['X', 'Y', 'Z']
-            )
+                corners_df = analyzer.get_wind_dataframe(
+                    " Building_Corners_3D          ",
+                    ['X', 'Y', 'Z']
+                )
 
-            frame_df = analyzer.get_wind_dataframe(
-                " Wire_Frame_Lines_3D          ",
-                ['Start', 'End']
-            )
+                frame_df = analyzer.get_wind_dataframe(
+                    " Wire_Frame_Lines_3D          ",
+                    ['Start', 'End']
+                )
 
-            # ... after you define tap_df, corners_df, and frame_df ...
+                # ... after you define tap_df, corners_df, and frame_df ...
 
-            # DEBUG PRINTS - Watch your terminal for these!
-            print("--- WINDLAB DEBUG INFO ---")
-            print(f"Tap Rows: {len(tap_df)}")
-            print(f"Corner Rows: {len(corners_df)}")
-            print(f"Frame Rows: {len(frame_df)}")
+                # DEBUG PRINTS - Watch your terminal for these!
+                print("--- WINDLAB DEBUG INFO ---")
+                print(f"Tap Rows: {len(tap_df)}")
+                print(f"Corner Rows: {len(corners_df)}")
+                print(f"Frame Rows: {len(frame_df)}")
 
-            if not corners_df.empty:
-                print("First few corners found:")
-                print(corners_df.head())
-            else:
-                print("ERROR: corners_df is EMPTY. Check your header_info string!")
+                if not corners_df.empty:
+                    print("First few corners found:")
+                    print(corners_df.head())
+                else:
+                    print("ERROR: corners_df is EMPTY. Check your header_info string!")
 
-            # Now the code tries to plot
-            analyzer.get_wind_frame_plot_3D(tap_df, frame_df, corners_df, plot_path)
+                # Now the code tries to plot
 
-            plot_filename = file.filename.replace(".HDF", "_3d_plt.png")
+                plot_filename = file.filename.replace(".HDF", "_3d_plt.png")
+                plot_path = os.path.join(upload_drop, plot_filename)
+
+                analyzer.get_wind_frame_plot_3D(tap_df, frame_df, corners_df, plot_path)
+
+                return {
+                    "message": "Success!!",
+                    "plot_url": plot_path,
+                    "taps_found": len(tap_df)
+                }
+
+        if file.filename.endswith(".mat"):
+            analyzer = WindDataAnalyzerTPU(file_path)
+
+            loc_df_before = analyzer.get_mat_df("Location_of_measured_points")
+            loc_df = loc_df_before.T
+            loc_df.columns = ['X', 'Y', 'Point_No', 'Face_No']
+            pressure_df = analyzer.get_mat_df("Wind_pressure_coefficients")
+
+            height = analyzer.get_one_stat('Building_height')
+            breadth = analyzer.get_one_stat('Building_breadth')
+            depth = analyzer.get_one_stat('Building_depth')
+
+
+            plot_filename = file.filename.replace('.mat','_3d_plt.png')
             plot_path = os.path.join(upload_drop, plot_filename)
 
-            analyzer.get_wind_frame_plot_3D(tap_df, frame_df, corners_df, plot_path)
+            analyzer.get_building_plot(loc_df, height, breadth, depth, plot_path)
 
             return {
                 "message": "Success!!",
-                "plot_url": plot_path,
-                "taps_found": len(tap_df)
+                "plot_url": plot_path
             }
-
-
-
     except Exception as e:
         return {
             "error" : str(e)

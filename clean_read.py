@@ -6,6 +6,9 @@ from scipy.interpolate import griddata
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import re
+from scipy.io import loadmat
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
 
 
 
@@ -90,6 +93,109 @@ class WindDataAnalyzerNIST:
         plt.savefig(output_path)
         plt.close()
         return output_path
+    
+
+#class to get the wind data from the tpu datbase
+class WindDataAnalyzerTPU:
+    def __init__(self, mat_path):
+        self.mat_path = mat_path
+        self.df = None
+
+
+    # function meant to return a dataframe of the users choosing to read the matlab file they put in 
+    def get_mat_df(self, var_name):
+        data = loadmat(self.mat_path)
+        matrix = data[var_name]
+        mat_df = pd.DataFrame(matrix)
+        return mat_df
+    
+
+    #use this function if theres a variable with only ONE value you need to extract
+    #good for height, breadth and depth because they are tables of ONE
+    def get_one_stat(self, stat_name):
+        data = loadmat(self.mat_path)
+        stat = data[stat_name].item()
+        return stat
+    
+
+    def get_building_plot(self, loc_df, H, B, D, output_path : str):
+        # We initialize them with zeros first
+        loc_df['G_X'] = 0.0
+        loc_df['G_Y'] = 0.0
+        loc_df['G_Z'] = 0.0
+
+        # 3. Apply the transformation logic face-by-face
+        # Surface 1: Windward (X is horizontal, Y is height)
+        # Surface 1: Windward (Front)
+        # X starts at 0, goes to B
+        mask1 = loc_df['Face_No'] == 1
+        loc_df.loc[mask1, 'G_X'] = loc_df['X']
+        loc_df.loc[mask1, 'G_Y'] = 0
+
+        # Surface 2: Right Side
+        # X continues from B, goes to B+D
+        mask2 = loc_df['Face_No'] == 2
+        loc_df.loc[mask2, 'G_X'] = B
+        loc_df.loc[mask2, 'G_Y'] = loc_df['X'] - B 
+
+        # Surface 3: Leeward (Back)
+        # X continues from B+D, goes to B+D+B
+        mask3 = loc_df['Face_No'] == 3
+        loc_df.loc[mask3, 'G_X'] = B - (loc_df['X'] - (B + D))
+        loc_df.loc[mask3, 'G_Y'] = D
+
+        # Surface 4: Left Side
+        # X continues from B+D+B, goes to B+D+B+D
+        mask4 = loc_df['Face_No'] == 4
+        loc_df.loc[mask4, 'G_X'] = 0
+        loc_df.loc[mask4, 'G_Y'] = D - (loc_df['X'] - (2*B + D))
+
+        # Z is always Y in this dataset
+        loc_df['G_Z'] = loc_df['Y']
+
+        print(f"Mapped coordinates for {len(loc_df)} taps using B={B}, D={D}, H={H}")
+        loc_df.head(10)
+        
+
+        corners = np.array([
+            [0, 0, 0], [B, 0, 0], [B, D, 0], [0, D, 0], # Bottom
+            [0, 0, H], [B, 0, H], [B, D, H], [0, D, H]  # Top
+        ])
+
+        # 2. Define the 6 faces (surfaces)
+        faces = [
+            [corners[0], corners[1], corners[5], corners[4]], # Windward (Front)
+            [corners[1], corners[2], corners[6], corners[5]], # Right Side
+            [corners[2], corners[3], corners[7], corners[6]], # Leeward (Back)
+            [corners[3], corners[0], corners[4], corners[7]], # Left Side
+            [corners[4], corners[5], corners[6], corners[7]]  # Roof
+        ]
+
+        # 3. Add to your existing plot
+        fig = plt.figure(figsize=(12, 9))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Add the surfaces (semi-transparent gray)
+        ax.add_collection3d(Poly3DCollection(faces, facecolors='cyan', linewidths=1, edgecolors='black', alpha=.1))
+
+        # Scatter the taps on top
+        scatter = ax.scatter(loc_df['G_X'], loc_df['G_Y'], loc_df['G_Z'], 
+                            c=loc_df['Face_No'], cmap='viridis', s=25, alpha=1)
+
+        # Match the box aspect ratio to the building dimensions
+        ax.set_box_aspect([B, D, H]) 
+
+        plt.colorbar(scatter, label='Surface Number')
+
+        ax.set_xlabel('Global X (m)')
+        ax.set_ylabel('Global Y (m)')
+        ax.set_zlabel('Global Z (m)')
+
+        plt.savefig(output_path)
+        plt.close()
+        return output_path
+
+
 
     
     
