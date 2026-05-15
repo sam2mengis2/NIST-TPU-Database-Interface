@@ -99,6 +99,11 @@ async def upload_files(file: UploadFile = File(...)):
                     ['Start', 'End']
                 )
 
+                mean_pressure_df = analyzer.get_wind_dataframe(
+                    " Tap_Max_Min_Mean_RMS         ",
+                    ['Tap no.', 'Cp Max', 'Cp Min', 'Cp Mean', 'Cp RMS']
+                )
+
                 # ... after you define tap_df, corners_df, and frame_df ...
 
                 # DEBUG PRINTS - Watch your terminal for these!
@@ -118,7 +123,7 @@ async def upload_files(file: UploadFile = File(...)):
                 plot_filename = file.filename.replace(".HDF", "_3d_plt.png")
                 plot_path = os.path.join(upload_drop, plot_filename)
 
-                analyzer.get_wind_frame_plot_3D(tap_df, frame_df, corners_df, plot_path)
+                analyzer.get_pressure_contour_map(mean_pressure_df,plot_path)
 
                 #if its good we return success with the path of the new plot (for now until we have a ui)
                 return {

@@ -95,6 +95,31 @@ class WindDataAnalyzerNIST:
         return output_path
     
 
+    def get_pressure_contour_map(self, mean_pressure_df, output_path : str):
+        taps = mean_pressure_df["Tap no."].values
+        cp = mean_pressure_df["Cp Mean"].values
+        
+        y = np.array([0, 1])
+        X, Y = np.meshgrid(taps, y)
+
+        CP = np.vstack([cp, cp])
+        
+        plt.figure(figsize=(12, 3))
+        
+        contour = plt.contourf(X, Y, CP, levels=50, cmap='RdBu_r')
+        #Formatting
+        plt.colorbar(contour, label='Mean $C_p$', pad=0.05)
+        plt.xlabel('Tap Number')
+        plt.yticks([]) # Hide the Y-axis since it's just a dummy height
+        plt.title('2D Pressure Contour by Tap Sequence')
+        
+        plt.tight_layout()
+        
+        plt.savefig(output_path)
+        plt.close()
+        return output_path
+    
+
 #class to get the wind data from the tpu datbase
 class WindDataAnalyzerTPU:
     def __init__(self, mat_path):
