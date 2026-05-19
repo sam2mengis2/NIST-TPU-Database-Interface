@@ -119,6 +119,46 @@ class WindDataAnalyzerNIST:
         plt.close()
         return output_path
     
+    def get_pressure_timestep_df(self):
+        pressure_time_series = pd.read_csv(
+            self.asc_path,
+            sep=r'\s+',
+            header=None
+        )
+
+        return pressure_time_series
+
+    def get_pressure_plot(self, pressure_timestep_df, tap_no, timestep_a, timestep_b, output_path:str):
+        
+        tap_idx = int(tap_no)
+        start_idx = int(timestep_a)
+        end_idx = int(timestep_b)       
+        
+        
+        pressure_for_tap = pressure_timestep_df[tap_idx]
+        
+        sliced_pressure = pressure_for_tap.iloc[start_idx:end_idx]
+        plt.plot(
+            sliced_pressure.index, 
+            sliced_pressure.values, 
+            color='#1f77b4', 
+            linewidth=0.5, 
+            label=f'Tap Channel {tap_no}'
+        )
+
+        plt.title(f'Pressure Coefficient Time Series - Tap {tap_no}', fontsize=12, fontweight='bold', pad=15)
+        plt.xlabel('Timestep (Frames / Samples)', fontsize=10)
+        plt.ylabel('Pressure Value ($C_p$)', fontsize=10)
+
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.legend(loc='upper right')
+
+        plt.tight_layout()
+
+        plt.savefig(f"tap_{tap_no}_clipped_timeline.png", dpi=300)
+        plt.savefig(output_path)
+        plt.close()
+        return output_path    
 
 #class to get the wind data from the tpu datbase
 class WindDataAnalyzerTPU:

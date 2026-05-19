@@ -8,6 +8,8 @@ import glob
 from clean_read import WindDataAnalyzerNIST
 from clean_read import WindDataAnalyzerTPU
 from fastapi.staticfiles import StaticFiles
+from supabase import create_client, Client
+import supabase
 
 app = FastAPI()
 
@@ -104,30 +106,34 @@ async def upload_files(file: UploadFile = File(...)):
                     ['Tap no.', 'Cp Max', 'Cp Min', 'Cp Mean', 'Cp RMS']
                 )
 
-                # ... after you define tap_df, corners_df, and frame_df ...
 
-                # DEBUG PRINTS - Watch your terminal for these!
+                flow_field_stats_df = analyzer.get_wind_dataframe(
+                    " Wind_Speed_Profile           ",
+                    ['Z', 'V', 'Iu', 'Iv', 'Iw']
+                )
+
+                reference_velocity = analyzer.get_wind_dataframe(
+                    " Reference_Wind_Speed         ",
+                    ['Reference Velocity (Feet/Second)']
+                )
+
+                pressure_time_df = analyzer.get_pressure_timestep_df()
+
+                # DEBUG PRINTS
                 print("--- WINDLAB DEBUG INFO ---")
-                print(f"Tap Rows: {len(tap_df)}")
-                print(f"Corner Rows: {len(corners_df)}")
-                print(f"Frame Rows: {len(frame_df)}")
-
-                if not corners_df.empty:
-                    print("First few corners found:")
-                    print(corners_df.head())
-                else:
-                    print("ERROR: corners_df is EMPTY. Check your header_info string!")
+                print(pressure_time_df.head())
 
                 # Now the code tries to plot
 
                 plot_filename = file.filename.replace(".HDF", "_3d_plt.png")
                 plot_path = os.path.join(upload_drop, plot_filename)
 
-                analyzer.get_pressure_contour_map(mean_pressure_df,plot_path)
+                analyzer.get_wind_frame_plot_3D(tap_df, frame_df, corners_df, plot_path)
+                
 
                 #if its good we return success with the path of the new plot (for now until we have a ui)
                 return {
-                    "plot_url": plot_path,
+                    "plot_url": f"http://localhost:8000/static/{plot_filename}"
                 }
 
 
@@ -167,4 +173,50 @@ async def upload_files(file: UploadFile = File(...)):
         
 
 
+
+
+
+@app.get("/plot/timeseries")
+async def get_custom_timeseries(tap_no, start, end):
+    folder_path = r"C:\WINDLAB_SUMMER\file_drop"
+    asc_path = None
+    hed_path = None # <-- We need to find this too!
     
+    # 1. Look for BOTH the active .asc and .hed files in the folder
+    if os.path.exists(folder_path):
+        for filename in os.listdir(folder_path):
+            if filename.endswith(".asc"):
+                asc_path = os.path.join(folder_path, filename)
+            elif filename.endswith(".hed"):
+                hed_path = os.path.join(folder_path, filename)
+            
+    # 2. Safety Check: Make sure BOTH files exist before proceeding
+    if not asc_path or not hed_path:
+        return {"error": "Missing active wind data (.asc or .hed). Please upload a .HDF file first."}
+        
+    try:
+        # 3. Initialize analyzer with BOTH paths! (No more empty strings)
+        analyzer = WindDataAnalyzerNIST(asc_path, hed_path)
+        
+        # 4. Read the data (This will now safely parse the .hed file for your tap coords)
+        df = analyzer.get_pressure_timestep_df()
+        
+        # 5. Create unique filename
+        plot_filename = f"tap_{tap_no}_steps_{start}_to_{end}.png"
+        plot_path = os.path.join(folder_path, plot_filename)
+        
+        # 6. Generate and save the plot
+        analyzer.get_pressure_plot(df, tap_no, start, end, plot_path)
+        
+        # 7. Return the URL
+        return {
+            "plot_url": f"http://localhost:8000/static/{plot_filename}"
+        }
+        
+    except Exception as e:
+        import traceback
+        print("--- CRITICAL TIMESERIES ERROR ---")
+        print(traceback.format_exc())
+        return {
+            "error": str(e)
+        }
